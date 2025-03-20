@@ -1,9 +1,0 @@
-/build
-/_next
-/__pycache__
-/venv
-/dist
-
-.DS_Store
-
-.gitignore

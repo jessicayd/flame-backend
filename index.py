@@ -191,4 +191,4 @@ if __name__ == "__main__":
     threading.Thread(target=start_flask, daemon=True).start()
 
     webview.create_window("COINS PDF Extractor", "http://127.0.0.1:5000")
-    webview.start()
+    webview.start(debug=True)

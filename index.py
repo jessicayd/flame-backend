@@ -10,6 +10,9 @@ from gmft.pdf_bindings import PyPDFium2Document
 from gmft.auto import AutoTableDetector, AutoTableFormatter
 import tempfile
 import os
+import base64
+from PIL import Image
+from io import BytesIO
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -44,40 +47,6 @@ def preprocess_pdf_with_ocr(input_pdf_path, output_pdf_path):
     except FileNotFoundError:
         return None
 
-@app.route('/api/extract-tables-ocr', methods=['POST'])
-def extract_tables_with_ocr():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file provided."}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file."}), 400
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        input_pdf_path = os.path.join(temp_dir, file.filename)
-        output_pdf_path = os.path.join(temp_dir, "ocr_" + file.filename)
-        file.save(input_pdf_path)
-
-        ocr_processed_pdf = preprocess_pdf_with_ocr(input_pdf_path, output_pdf_path)
-        if not ocr_processed_pdf:
-            return jsonify({"error": "OCR processing failed."}), 500
-
-        try:
-            tables, doc = ingest_pdf(ocr_processed_pdf)
-
-            if tables:
-                ft = formatter.extract(tables[0])
-                df = ft.df() 
-                json_data = df[df.columns.tolist()].to_dict(orient="records")
-
-                return jsonify({"tables": json_data})
-            else:
-                return jsonify({"message": "No tables found in the OCR-processed PDF."})
-        except Exception as e:
-            return jsonify({"error": f"Failed to extract tables: {str(e)}"}), 500
-        
-    doc.close()
-
 @app.route('/api/extract-tables', methods=['POST'])
 def extract_tables():
     if 'file' not in request.files:
@@ -105,14 +74,21 @@ def extract_tables():
             all_tables = []
 
             for table in tables:
-                df = formatter.extract(table).df()
+                ft = formatter.extract(table)
+
+                df = ft.df()
+                img = ft.image()
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
 
                 ordered_columns = list(df.columns)  
                 table_data = df[ordered_columns].to_dict(orient="records")  
 
                 all_tables.append({
                     "headers": ordered_columns,  
-                    "table_data": table_data     
+                    "table_data": table_data,
+                    "image": img_base64
                 })
             doc.close()
             return jsonify({"success": True, "tables": all_tables})
@@ -159,30 +135,6 @@ def export_csv():
             zipf.writestr(f"table_{idx+1}.csv", csv_buffer.getvalue())
 
     return jsonify({"message": "File saved successfully!", "file_path": zip_path})
-
-
-# @app.route('/api/export-csv', methods=['POST'])
-# def export_csv():
-#     data = request.json
-#     if not data or 'tables' not in data:
-#         return jsonify({"error": "Invalid request format"}), 400
-
-#     exported_files = {}
-
-#     for idx, table in enumerate(data["tables"]):
-#         df = pd.DataFrame(table["table_data"])
-#         header_mappings = table["header_mappings"]
-
-#         updated_headers = {col: header_mappings[col] if col in header_mappings and header_mappings[col] else col for col in df.columns}
-#         df.rename(columns=updated_headers, inplace=True)
-
-#         csv_buffer = io.StringIO()
-#         df.to_csv(csv_buffer, index=False)
-
-#         exported_files[f"table_{idx+1}.csv"] = csv_buffer.getvalue()
-
-#     return jsonify({"csv_files": exported_files})
-
 
 def start_flask():
     app.run(host="127.0.0.1", port=5000, debug=False)

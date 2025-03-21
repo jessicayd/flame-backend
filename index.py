@@ -115,7 +115,6 @@ def export_csv():
     zip_filename = "tables.zip"
     zip_path = os.path.join(downloads_folder, zip_filename)
 
-    # Create a ZIP file in memory
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for idx, table in enumerate(data["tables"]):
             df = pd.DataFrame(table["table_data"])
@@ -131,7 +130,6 @@ def export_csv():
             df.to_csv(csv_buffer, index=False)
             csv_buffer.seek(0)
 
-            # Write CSV data to ZIP file
             zipf.writestr(f"table_{idx+1}.csv", csv_buffer.getvalue())
 
     return jsonify({"message": "File saved successfully!", "file_path": zip_path})

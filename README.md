@@ -2,7 +2,7 @@
 
 This is the frontend for the COINS PDF Extractor, built for the Princeton University-based FLAME project.
 
-## 🛠 Built With
+## Built With
 
 - **Flask**
 - **gmft**
